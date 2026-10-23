@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tesla Roadster — Hyperdrive</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24'>🏎</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --accent: #37e0ff;
+    --accent-dim: rgba(55, 224, 255, 0.16);
+    --red: #e02828;
+    --bg: #05070b;
+    --panel: rgba(10, 14, 20, 0.88);
+    --text: #eef2f6;
+    --muted: #8b95a3;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: var(--text); user-select: none; }
+  #app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .screen { position: fixed; inset: 0; display: none; z-index: 20; }
+  .screen.visible { display: flex; }
+
+  /* ---------- loading ---------- */
+  #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 40%, #0b1220 0%, #05070b 70%); z-index: 100; transition: opacity 0.5s; }
+  #loading.done { opacity: 0; pointer-events: none; }
+  #loading h1 { font-size: 42px; font-weight: 800; letter-spacing: 6px; }
+  #loading h1 span { color: var(--accent); }
+  #loading .sub { color: var(--muted); letter-spacing: 3px; margin: 8px 0 30px; font-size: 13px; }
+  #load-track { width: min(420px, 70vw); height: 4px; background: #1a2230; border-radius: 2px; overflow: hidden; }
+  #load-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #1e9fd8, var(--accent)); transition: width 0.25s; }
+  #load-text { margin-top: 14px; color: var(--muted); font-size: 13px; }
+  #load-tip { margin-top: 40px; color: #5a6572; font-size: 12px; max-width: 420px; text-align: center; line-height: 1.6; }
+
+  /* ---------- main menu ---------- */
+  #screen-menu { flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(5,7,11,0.55) 0%, rgba(5,7,11,0.15) 40%, rgba(5,7,11,0.75) 100%); pointer-events: none; }
+  #screen-menu > * { pointer-events: auto; }
+  .title { font-size: clamp(34px, 6vw, 64px); font-weight: 800; letter-spacing: 8px; text-align: center; text-shadow: 0 4px 30px rgba(0,0,0,0.8); }
+  .title span { color: var(--accent); }
+  .subtitle { color: var(--muted); letter-spacing: 4px; font-size: 13px; margin: 10px 0 34px; text-align: center; }
+  .menu-btns { display: flex; flex-direction: column; gap: 12px; width: min(340px, 80vw); }
+  .btn { padding: 14px 22px; font-size: 15px; font-weight: 600; letter-spacing: 2px; color: var(--text); background: rgba(16,22,32,0.85); border: 1px solid #2a3547; border-radius: 10px; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .btn:hover { border-color: var(--accent); background: var(--accent-dim); transform: translateY(-1px); }
+  .btn.primary { background: linear-gradient(135deg, #0e6f96, #129fd0); border-color: #37e0ff; font-size: 17px; padding: 16px 22px; }
+  .btn.primary:hover { filter: brightness(1.15); }
+  .btn.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  .chips-row { display: flex; gap: 26px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .chip-group { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .chip-group .label { font-size: 11px; letter-spacing: 2px; color: var(--muted); }
+  .chips { display: flex; gap: 8px; }
+  .chip { padding: 8px 14px; font-size: 13px; background: rgba(16,22,32,0.85); border: 1px solid #2a3547; color: var(--text); border-radius: 20px; cursor: pointer; }
+  .chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  #controls-list { display: grid; grid-template-columns: repeat(2, minmax(150px, 200px)); gap: 6px 22px; margin-top: 30px; padding: 16px 22px; background: rgba(10,14,20,0.7); border: 1px solid #1e2836; border-radius: 12px; }
+  .ctl { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+  .ctl .key { background: #1c2534; border: 1px solid #33405a; border-bottom-width: 2px; border-radius: 6px; padding: 3px 9px; color: var(--text); font-weight: 600; white-space: nowrap; }
+  .footnote { position: absolute; bottom: 14px; font-size: 11px; color: #5a6572; text-align: center; padding: 0 20px; }
+
+  /* ---------- overlay panels ---------- */
+  .panel-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(3,5,8,0.72); z-index: 30; pointer-events: auto; }
+  .panel-overlay.visible { display: flex; }
+  .panel { background: var(--panel); border: 1px solid #2a3547; border-radius: 16px; padding: 28px; width: min(560px, 92vw); max-height: 86vh; overflow-y: auto; backdrop-filter: blur(8px); }
+  .panel h2 { font-size: 20px; letter-spacing: 3px; margin-bottom: 18px; }
+  .panel h2 span { color: var(--accent); }
+  .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+  .mode-card { background: #101724; border: 1px solid #2a3547; border-radius: 12px; padding: 16px; cursor: pointer; text-align: left; color: var(--text); transition: all 0.15s; font-family: inherit; }
+  .mode-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .mode-card h3 { font-size: 15px; margin-bottom: 6px; color: var(--accent); }
+  .mode-card p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .set-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #1a2230; font-size: 14px; }
+  .set-row select, .set-row input[type="checkbox"] { accent-color: var(--accent); }
+  .set-row select { background: #141c2a; color: var(--text); border: 1px solid #2a3547; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+  .best-row { display: flex; gap: 18px; margin: 14px 0; font-size: 13px; color: var(--muted); }
+  .best-row b { color: var(--accent); }
+  .about p { font-size: 13.5px; line-height: 1.75; color: var(--muted); margin-bottom: 12px; }
+  .about b { color: var(--text); }
+
+  /* ---------- garage ---------- */
+  #screen-garage { justify-content: flex-end; align-items: stretch; pointer-events: none; background: linear-gradient(90deg, rgba(5,7,11,0.35) 0%, rgba(5,7,11,0) 45%); }
+  #garage-ui { pointer-events: auto; width: min(330px, 86vw); background: var(--panel); border-left: 1px solid #2a3547; padding: 24px; overflow-y: auto; backdrop-filter: blur(8px); display: flex; flex-direction: column; gap: 18px; }
+  #garage-ui h2 { font-size: 18px; letter-spacing: 4px; }
+  #garage-ui h2 span { color: var(--accent); }
+  .g-section .g-label { font-size: 11px; letter-spacing: 2px; color: var(--muted); margin-bottom: 10px; }
+  #garage-paint-name { font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+  .swatch { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #2a3547; cursor: pointer; transition: all 0.15s; }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch.active { border-color: var(--accent); box-shadow: 0 0 12px rgba(55,224,255,0.5); }
+  .seg { display: flex; gap: 8px; }
+  .seg .btn { flex: 1; padding: 10px 6px; font-size: 12px; }
+  #garage-hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; display: none; z-index: 10; pointer-events: none; font-variant-numeric: tabular-nums; }
+  #hud.visible { display: block; }
+  #hud-map { position: absolute; top: 18px; right: 18px; width: 176px; height: 176px; border-radius: 50%; border: 2px solid rgba(55,224,255,0.35); }
+  #hud-chips { position: absolute; top: 18px; left: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .hchip { background: rgba(8,12,18,0.7); border: 1px solid #223047; border-radius: 8px; padding: 7px 12px; font-size: 12.5px; color: var(--muted); letter-spacing: 1px; }
+  .hchip b { color: var(--text); }
+  #hud-lights.on { color: #ffe9a8; border-color: #ffe9a8; }
+  #hud-speedbox { position: absolute; right: 22px; bottom: 22px; text-align: right; background: rgba(8,12,18,0.66); border: 1px solid #223047; border-radius: 14px; padding: 14px 20px; min-width: 210px; }
+  #hud-speed { font-size: 56px; font-weight: 800; line-height: 1; text-shadow: 0 2px 18px rgba(55,224,255,0.25); }
+  #hud-unit { font-size: 14px; color: var(--muted); margin-left: 6px; }
+  #hud-gear-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+  .gear { font-size: 20px; font-weight: 800; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #2a3547; }
+  .gear.g-D { color: #37e0ff; border-color: #37e0ff; }
+  .gear.g-R { color: #ff6b6b; border-color: #ff6b6b; }
+  .gear.g-N { color: #ffd166; border-color: #ffd166; }
+  #hud-power-track { height: 6px; background: #1a2230; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  #hud-power-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #1e9fd8, var(--accent)); border-radius: 3px; }
+  #hud-power-fill.regen { background: linear-gradient(90deg, #2bd96a, #7dff9f); }
+  #hud-batt-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+  #hud-batt-track { flex: 1; height: 5px; background: #1a2230; border-radius: 3px; overflow: hidden; }
+  #hud-batt-fill { height: 100%; width: 100%; background: #2bd96a; border-radius: 3px; }
+  #hud-batt-fill.low { background: var(--red); }
+  #hud-boost { display: none; margin-top: 8px; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #ff9f1c; }
+  #hud-boost.on { display: block; animation: pulse 0.5s infinite alternate; }
+  @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; } }
+  #hud-drift { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); font-size: 26px; font-weight: 800; letter-spacing: 6px; color: #ff9f1c; opacity: 0; transition: opacity 0.2s; text-shadow: 0 2px 20px rgba(255,159,28,0.6); }
+  #hud-drift.on { opacity: 1; }
+  #hud-timer { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 30px; font-weight: 800; letter-spacing: 3px; background: rgba(8,12,18,0.66); padding: 8px 24px; border-radius: 12px; border: 1px solid #223047; display: none; }
+  #hud-score { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); font-size: 17px; font-weight: 600; letter-spacing: 2px; color: var(--accent); background: rgba(8,12,18,0.66); padding: 6px 18px; border-radius: 10px; border: 1px solid #223047; display: none; }
+  #hud-banner { position: absolute; top: 32%; left: 50%; transform: translate(-50%, -50%) scale(0.94); text-align: center; opacity: 0; transition: all 0.3s; pointer-events: none; }
+  #hud-banner.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #hud-banner-title { font-size: clamp(26px, 4.5vw, 46px); font-weight: 800; letter-spacing: 5px; text-shadow: 0 4px 30px rgba(0,0,0,0.9); }
+  #hud-banner-sub { color: var(--accent); letter-spacing: 2px; margin-top: 8px; font-size: 15px; }
+  #hud-help { position: absolute; left: 18px; bottom: 18px; font-size: 11.5px; color: var(--muted); background: rgba(8,12,18,0.6); padding: 8px 14px; border-radius: 10px; border: 1px solid #1e2836; line-height: 1.7; }
+  #toasts { position: absolute; bottom: 210px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .toast { background: rgba(8,12,18,0.85); border: 1px solid var(--accent); color: var(--text); padding: 9px 20px; border-radius: 20px; font-size: 13px; opacity: 0; transform: translateY(8px); transition: all 0.3s; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ---------- pause / complete ---------- */
+  #screen-pause, #screen-complete { align-items: center; justify-content: center; background: rgba(3,5,8,0.66); backdrop-filter: blur(4px); }
+  .dialog { background: var(--panel); border: 1px solid #2a3547; border-radius: 18px; padding: 36px 44px; text-align: center; min-width: min(420px, 88vw); }
+  .dialog h2 { font-size: 30px; letter-spacing: 5px; margin-bottom: 6px; }
+  .dialog h2 span { color: var(--accent); }
+  #pause-subtitle { color: var(--muted); font-size: 13px; letter-spacing: 2px; margin-bottom: 24px; }
+  .dialog .menu-btns { width: 100%; }
+  #complete-lines { margin: 14px 0 26px; font-size: 16px; line-height: 2; color: var(--muted); }
+  #complete-lines div:first-child { color: var(--accent); font-size: 19px; font-weight: 700; }
+
+  /* ---------- photo mode ---------- */
+  #photo-ui { position: fixed; inset: 0; display: none; z-index: 15; pointer-events: none; }
+  #photo-ui.visible { display: block; }
+  #photo-bar { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; pointer-events: auto; align-items: center; background: rgba(8,12,18,0.8); padding: 12px 18px; border-radius: 14px; border: 1px solid #2a3547; }
+  #photo-hint { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--muted); background: rgba(8,12,18,0.7); padding: 8px 18px; border-radius: 18px; }
+
+  /* ---------- touch controls ---------- */
+  #touch-controls { position: fixed; inset: 0; z-index: 12; pointer-events: none; display: none; }
+  .tc-left, .tc-right { position: absolute; bottom: 110px; display: flex; gap: 14px; pointer-events: auto; }
+  .tc-left { left: 20px; }
+  .tc-right { right: 20px; }
+  .tc-left button, .tc-right button { width: 74px; height: 74px; border-radius: 50%; font-size: 26px; background: rgba(16,22,32,0.6); border: 2px solid #2a3547; color: var(--text); touch-action: none; }
+  .tc-left button:active, .tc-right button:active { border-color: var(--accent); background: var(--accent-dim); }
+
+  @media (max-width: 760px) {
+    #controls-list, #hud-help { display: none; }
+    #hud-map { width: 120px; height: 120px; }
+    #hud-speed { font-size: 40px; }
+  }
+</style>
+  <script type="module" crossorigin src="./assets/index-QNiLZMmK.js"></script>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- loading -->
+<div id="loading" class="screen visible">
+  <h1>ROADSTER <span>HYPERDRIVE</span></h1>
+  <div class="sub">TESLA ROADSTER — FAN TRIBUTE EXPERIENCE</div>
+  <div id="load-track"><div id="load-bar"></div></div>
+  <div id="load-text">Starting…</div>
+  <div id="load-tip">Tip: tap <b>C</b> anytime while driving to cycle through 6 cinematic cameras — including a full cockpit view.</div>
+</div>
+
+<!-- main menu -->
+<div id="screen-menu" class="screen">
+  <div class="title">TESLA ROADSTER <span>— HYPERDRIVE</span></div>
+  <div class="subtitle">OPEN-WORLD ELECTRIC SUPERCAR DRIVING</div>
+  <div class="menu-btns">
+    <button class="btn primary" id="btn-drive">START DRIVING</button>
+    <button class="btn" id="btn-modes">GAME MODES</button>
+    <button class="btn" id="btn-garage">GARAGE &amp; CUSTOMIZE</button>
+    <button class="btn" id="btn-settings">SETTINGS</button>
+    <button class="btn" id="btn-about">ABOUT</button>
+  </div>
+  <div class="chips-row">
+    <div class="chip-group">
+      <div class="label">TIME OF DAY</div>
+      <div class="chips" id="tod-chips">
+        <button class="chip" data-tod="day">☀ Day</button>
+        <button class="chip" data-tod="sunset">🌇 Sunset</button>
+        <button class="chip" data-tod="night">🌙 Night</button>
+      </div>
+    </div>
+    <div class="chip-group">
+      <div class="label">WEATHER</div>
+      <div class="chips" id="weather-chips">
+        <button class="chip" data-wx="clear">Clear</button>
+        <button class="chip" data-wx="rain">🌧 Rain</button>
+        <button class="chip" data-wx="fog">🌫 Fog</button>
+      </div>
+    </div>
+  </div>
+  <div id="controls-list"></div>
+  <div class="footnote">Unofficial fan-made tribute. Not affiliated with or endorsed by Tesla, Inc. All performance figures are simulated game values. Sounds are synthesized.</div>
+
+  <!-- modes panel -->
+  <div class="panel-overlay" id="panel-modes">
+    <div class="panel">
+      <h2>GAME <span>MODES</span></h2>
+      <div class="mode-grid">
+        <button class="mode-card" data-mode="freeroam"><h3>Free Roam</h3><p>Explore the coastal highway, mountain passes, tunnel and city with no objectives.</p></button>
+        <button class="mode-card" data-mode="timetrial"><h3>Time Trial</h3><p>One full lap of the island loop against the clock. Beat your best.</p></button>
+        <button class="mode-card" data-mode="speed"><h3>Speed Challenge</h3><p>Hit 260 km/h on the coastal straight. Pure launch.</p></button>
+        <button class="mode-card" data-mode="drift"><h3>Drift Challenge</h3><p>120 seconds at the test pad. Chain drifts for combo multipliers — walls reset them.</p></button>
+        <button class="mode-card" data-mode="race"><h3>Checkpoint Race</h3><p>Thread 8 glowing gates in sequence around the island. Fastest total wins.</p></button>
+        <button class="mode-card" data-mode="photo"><h3>Photo Mode</h3><p>Freeze the action, orbit the car freely and capture a screenshot.</p></button>
+      </div>
+      <button class="btn" id="btn-modes-back" style="width:100%">BACK</button>
+    </div>
+  </div>
+
+  <!-- settings panel -->
+  <div class="panel-overlay" id="panel-settings">
+    <div class="panel">
+      <h2><span>SETTINGS</span></h2>
+      <div class="set-row"><span>Graphics quality</span><select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></div>
+      <div class="set-row"><span>Auto quality (keeps 60 FPS)</span><input type="checkbox" id="set-autoq" /></div>
+      <div class="set-row"><span>Speed units</span><select id="set-units"><option value="kmh">km/h</option><option value="mph">mph</option></select></div>
+      <div class="set-row"><span>Sound</span><input type="checkbox" id="set-sound" /></div>
+      <div class="set-row"><span>Default camera</span><select id="set-camera"><option value="0">Chase</option><option value="1">Rear</option><option value="2">Hood</option><option value="3">Cockpit</option><option value="4">Orbit</option><option value="5">Low</option></select></div>
+      <div class="best-row"><span>Best lap <b id="best-lap">—</b></span><span>Best race <b id="best-race">—</b></span><span>Best drift <b id="best-drift">—</b></span></div>
+      <button class="btn" id="btn-settings-back" style="width:100%">BACK</button>
+    </div>
+  </div>
+
+  <!-- about panel -->
+  <div class="panel-overlay" id="panel-about">
+    <div class="panel about">
+      <h2>ABOUT <span>HYPERDRIVE</span></h2>
+      <p><b>Hyperdrive</b> is an unofficial, fan-made 3D driving tribute inspired by the Tesla Roadster, built with Three.js and TypeScript. It is not affiliated with or endorsed by Tesla, Inc.</p>
+      <p>The car is a <b>procedurally modelled tribute</b> — every panel is generated in code, not a licensed scan. Performance figures (0–100, top speed) are <b>simulated arcade values</b>, and the <b>N boost</b> is a fictional game feature. All audio is synthesized; nothing is recorded from a real vehicle.</p>
+      <p>Drive the coastal highway, climb the mountain pass, blast through the tunnel, cross the river bridge, cruise the night city — then take it to the test pad and drift.</p>
+      <button class="btn" id="btn-about-back" style="width:100%">BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- garage -->
+<div id="screen-garage" class="screen">
+  <div id="garage-ui">
+    <h2>THE <span>GARAGE</span></h2>
+    <div class="g-section">
+      <div class="g-label">PAINT</div>
+      <div id="garage-paint-name"></div>
+      <div class="swatches" id="paint-swatches"></div>
+    </div>
+    <div class="g-section">
+      <div class="g-label">FINISH</div>
+      <div class="seg">
+        <button class="btn" data-finish="gloss">Gloss</button>
+        <button class="btn" data-finish="metallic">Metallic</button>
+        <button class="btn" data-finish="matte">Matte</button>
+      </div>
+    </div>
+    <div class="g-section">
+      <div class="g-label">WHEELS</div>
+      <div class="swatches" id="wheel-swatches"></div>
+    </div>
+    <div class="g-section">
+      <div class="g-label">DETAILS</div>
+      <div class="seg">
+        <button class="btn" id="garage-lights">Headlights</button>
+        <button class="btn active" id="garage-spin" data-on="1">Spin</button>
+      </div>
+    </div>
+    <div class="g-section">
+      <div class="g-label">CAMERA</div>
+      <div class="seg">
+        <button class="btn" data-view="front">Front</button>
+        <button class="btn" data-view="side">Side</button>
+        <button class="btn" data-view="rear">Rear</button>
+        <button class="btn" data-view="top">Top</button>
+      </div>
+    </div>
+    <div id="garage-hint">Drag to orbit · scroll to zoom.<br/>Your paint, finish and wheels carry over to the open world.</div>
+    <div class="menu-btns" style="width:100%">
+      <button class="btn primary" id="btn-garage-drive">DRIVE</button>
+      <button class="btn" id="btn-garage-menu">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <canvas id="hud-map" width="176" height="176"></canvas>
+  <div id="hud-chips">
+    <div class="hchip">📷 <b id="hud-camera">Chase</b></div>
+    <div class="hchip" id="hud-lights">💡 Lights</div>
+    <div class="hchip" id="hud-clock">☀</div>
+    <div class="hchip" id="hud-mute">🔊</div>
+    <div class="hchip">🛣 <b id="hud-dist">0.0 km</b></div>
+  </div>
+  <div id="hud-speedbox">
+    <div><span id="hud-speed">0</span><span id="hud-unit">km/h</span></div>
+    <div id="hud-gear-row"><div class="gear g-N" id="hud-gear">N</div><div id="hud-boost">⚡ BOOST</div></div>
+    <div id="hud-power-track"><div id="hud-power-fill"></div></div>
+    <div id="hud-batt-row"><span>🔋</span><div id="hud-batt-track"><div id="hud-batt-fill"></div></div><span id="hud-batt-label">100%</span></div>
+  </div>
+  <div id="hud-drift">DRIFT</div>
+  <div id="hud-timer"></div>
+  <div id="hud-score"></div>
+  <div id="hud-banner"><div id="hud-banner-title"></div><div id="hud-banner-sub"></div></div>
+  <div id="hud-help">W A S D drive · Space handbrake · C camera · R reset · N boost · L lights · P photo · Esc pause</div>
+  <div id="toasts"></div>
+</div>
+
+<!-- pause -->
+<div id="screen-pause" class="screen">
+  <div class="dialog">
+    <h2>PAU<span>SED</span></h2>
+    <div id="pause-subtitle">Free Roam</div>
+    <div class="menu-btns">
+      <button class="btn primary" id="btn-resume">RESUME</button>
+      <button class="btn" id="btn-restart">RESTART</button>
+      <button class="btn" id="btn-pause-garage">GARAGE</button>
+      <button class="btn" id="btn-quit-menu">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- complete -->
+<div id="screen-complete" class="screen">
+  <div class="dialog">
+    <h2 id="complete-title">COMPLETE</h2>
+    <div id="complete-lines"></div>
+    <div class="menu-btns">
+      <button class="btn primary" id="btn-complete-retry">RETRY</button>
+      <button class="btn" id="btn-complete-menu">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- photo mode -->
+<div id="photo-ui">
+  <div id="photo-hint">Drag to orbit · scroll to zoom · P or ✕ to exit photo mode</div>
+  <div id="photo-bar">
+    <button class="btn primary" id="btn-photo-capture">📷 CAPTURE</button>
+    <button class="btn" id="btn-photo-exit">✕ EXIT</button>
+  </div>
+</div>
+
+</body>
+</html>
